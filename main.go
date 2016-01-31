@@ -6,12 +6,15 @@ import (
 	"github.com/btcsuite/btcrpcclient"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/libreoscar/utils/log"
+	zmq "github.com/pebbe/zmq4"
 	"io"
 	"net/http"
 	"os"
+	"sync"
 )
 
 var client *btcrpcclient.Client
+var sender *zmq.Socket
 var logger = log.New(log.DEBUG)
 
 func loadConf() *btcrpcclient.ConnConfig {
@@ -27,6 +30,16 @@ func loadConf() *btcrpcclient.ConnConfig {
 	return rpcConf
 }
 
+func getInfo(client *btcrpcclient.Client) {
+	// Get the current block count.
+	info, err := client.GetInfo()
+	if err != nil {
+		logger.Crit(err.Error())
+	}
+	logger.Info(fmt.Sprintf("Bitcoind Info: %v", spew.Sdump(info)))
+
+}
+
 func checkBlock(client *btcrpcclient.Client, blockNum int64) {
 	blockHash, err := client.GetBlockHash(blockNum)
 	if err != nil {
@@ -39,12 +52,17 @@ func checkBlock(client *btcrpcclient.Client, blockNum int64) {
 		return
 	}
 	for _, tx := range block.Transactions() {
-		fmt.Printf("Tx ID: %v\n", tx.Sha())
+		var msg = fmt.Sprintf("Tx ID: %v\n", tx.Sha())
+		logger.Info(msg)
+		sender.Send(msg, 0)
+		spew.Dump(sender)
 		for _, vout := range tx.MsgTx().TxOut {
 			addr := NewAddrFromPkScript(vout.PkScript, true)
-			spew.Dump(addr)
+			msg = spew.Sdump(addr)
+			logger.Info(msg)
+			sender.Send(msg, 0)
 		}
-		fmt.Println("===========")
+		sender.Send("End of Tx\n", 0)
 	}
 }
 
@@ -68,17 +86,33 @@ func main() {
 	}
 	defer client.Shutdown()
 
-	// // Get the current block count.
-	// info, err := client.GetInfo()
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// log.Printf("Bitcoind Info: %v", spew.Sdump(info))
+	var wg sync.WaitGroup
+
+	wg.Add(2)
 
 	http.HandleFunc("/block", blockNotify)
 	logger.Info("Starting server...")
-	err = http.ListenAndServe(":8000", nil)
-	if err != nil {
-		logger.Crit(err.Error())
-	}
+
+	// Start http server for bitcoind
+	go func() {
+		defer wg.Done()
+		err = http.ListenAndServe("127.0.0.1:8000", nil)
+		if err != nil {
+			logger.Crit(err.Error())
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		sender, err = zmq.NewSocket(zmq.PUB)
+		defer sender.Close()
+		if err != nil {
+			logger.Crit(err.Error())
+		}
+		sender.Bind("tcp://*:8001")
+		logger.Info("ZMQ server started...")
+	}()
+
+	wg.Wait()
+
 }
