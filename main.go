@@ -1,6 +1,7 @@
 package main
 
 import (
+	//	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"github.com/btcsuite/btcrpcclient"
@@ -31,7 +32,7 @@ func loadConf() *btcrpcclient.ConnConfig {
 }
 
 func getInfo(client *btcrpcclient.Client) {
-	// Get the current block count.
+	// getinfo demo
 	info, err := client.GetInfo()
 	if err != nil {
 		logger.Crit(err.Error())
@@ -40,8 +41,24 @@ func getInfo(client *btcrpcclient.Client) {
 
 }
 
+func decodePkScript(script []byte) (message []byte) {
+	if len(script) < 3 || len(script) > 82 || script[0] != 0x6a {
+		return nil
+	} else {
+		size := int(script[1])
+		if size != len(script)-2 {
+			return nil
+		}
+		return script[2:]
+	}
+}
+
+func buildZmqMsg(result []interface{}) string {
+	return ""
+}
+
 func checkBlock(client *btcrpcclient.Client, blockNum int64) {
-	blockHash, err := client.GetBlockHash(blockNum)
+	blockHash, err := client.GetBlockHash(653895)
 	if err != nil {
 		logger.Crit(err.Error())
 		return
@@ -51,19 +68,35 @@ func checkBlock(client *btcrpcclient.Client, blockNum int64) {
 		logger.Crit(err.Error())
 		return
 	}
-	for _, tx := range block.Transactions() {
+
+	txs := block.Transactions()
+
+	logger.Info("Processing txs...")
+	for _, tx := range txs {
 		var msg = fmt.Sprintf("Tx ID: %v\n", tx.Sha())
 		logger.Info(msg)
-		sender.Send(msg, 0)
-		spew.Dump(sender)
-		for _, vout := range tx.MsgTx().TxOut {
+		vouts := tx.MsgTx().TxOut
+		result := make([]interface{}, len(vouts))
+		for i, vout := range vouts {
 			addr := NewAddrFromPkScript(vout.PkScript, true)
 			msg = spew.Sdump(addr)
 			logger.Info(msg)
-			sender.Send(msg, 0)
+			if addr != nil {
+				result[i] = struct {
+					addr  *BtcAddr
+					value int64
+				}{
+					addr,
+					vout.Value,
+				}
+			} else {
+				result[i] = decodePkScript(vout.PkScript)
+			}
 		}
-		sender.Send("End of Tx\n", 0)
+		spew.Dump(result)
+		sender.Send(buildZmqMsg(result), 0)
 	}
+	logger.Info("Process done.")
 }
 
 func blockNotify(w http.ResponseWriter, r *http.Request) {
