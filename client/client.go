@@ -15,14 +15,15 @@ func main() {
 
 	for {
 		for {
-			msg, err := receiver.Recv(0)
+			msg, err := receiver.RecvBytes(0)
 			if err != nil {
+				fmt.Println(err)
 				// 'resource is temporarily unavailable' error because the
 				// underlying libzmq reports EAGAIN when in NOBLOCK mode
 				break
 			}
 			//  process msg
-			fmt.Printf("Got msg: '%s'\n", msg)
+			fmt.Printf("Got msg: '%v'\n", msg)
 		}
 		//  No activity, so sleep for 1 millisecond before checking again
 		time.Sleep(time.Millisecond)

@@ -1,0 +1,28 @@
+syntax="proto3";
+
+package message;
+
+message ValueTransfer {
+  string address = 1;
+  int32 value = 2;
+}
+
+message OpReturnMsg {
+  string msg = 1;
+}
+
+message TxResult {
+  oneof Result {
+    ValueTransfer transfer = 1;
+    OpReturnMsg   msg = 2;
+  }
+}
+
+message ProcessedTx {
+  string Txid = 1;
+  repeated TxResult Result = 2;
+}
+
+message ProcessedBlock {
+  repeated  ProcessedTx Txs = 1;
+}

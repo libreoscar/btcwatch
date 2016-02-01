@@ -1,11 +1,14 @@
+//go:generate protoc -I $GOPATH/src --go_out=$GOPATH/src $GOPATH/src/github.com/dyzz/gobtclib/message/schema.proto
+
 package main
 
 import (
-	//	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"github.com/btcsuite/btcrpcclient"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/dyzz/gobtclib/message"
+	"github.com/golang/protobuf/proto"
 	"github.com/libreoscar/utils/log"
 	zmq "github.com/pebbe/zmq4"
 	"io"
@@ -53,10 +56,6 @@ func decodePkScript(script []byte) (message []byte) {
 	}
 }
 
-func buildZmqMsg(result []interface{}) string {
-	return ""
-}
-
 func checkBlock(client *btcrpcclient.Client, blockNum int64) {
 	blockHash, err := client.GetBlockHash(653895)
 	if err != nil {
@@ -71,30 +70,43 @@ func checkBlock(client *btcrpcclient.Client, blockNum int64) {
 
 	txs := block.Transactions()
 
+	var processedBlock = &message.ProcessedBlock{make([]*message.ProcessedTx, len(txs))}
+
 	logger.Info("Processing txs...")
-	for _, tx := range txs {
-		var msg = fmt.Sprintf("Tx ID: %v\n", tx.Sha())
-		logger.Info(msg)
+	for txIndex, tx := range txs {
 		vouts := tx.MsgTx().TxOut
-		result := make([]interface{}, len(vouts))
+		result := make([]*message.TxResult, len(vouts))
 		for i, vout := range vouts {
 			addr := NewAddrFromPkScript(vout.PkScript, true)
-			msg = spew.Sdump(addr)
-			logger.Info(msg)
 			if addr != nil {
-				result[i] = struct {
-					addr  *BtcAddr
-					value int64
-				}{
-					addr,
-					vout.Value,
+				result[i] = &message.TxResult{
+					&message.TxResult_Transfer{
+						&message.ValueTransfer{
+							addr.String(),
+							int32(vout.Value),
+						},
+					},
 				}
 			} else {
-				result[i] = decodePkScript(vout.PkScript)
+				result[i] = &message.TxResult{
+					&message.TxResult_Msg{
+						&message.OpReturnMsg{string(decodePkScript(vout.PkScript))},
+					},
+				}
 			}
 		}
-		spew.Dump(result)
-		sender.Send(buildZmqMsg(result), 0)
+		processedBlock.Txs[txIndex] = &message.ProcessedTx{
+			tx.Sha().String(),
+			result,
+		}
+	}
+	spew.Dump(processedBlock)
+	data, err := proto.Marshal(processedBlock)
+	if err != nil {
+		logger.Crit(err.Error())
+	} else {
+		logger.Info("Publish to ZMQ...")
+		sender.SendBytes(data, 0)
 	}
 	logger.Info("Process done.")
 }
