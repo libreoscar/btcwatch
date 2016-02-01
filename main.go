@@ -106,6 +106,7 @@ func checkBlock(client *btcrpcclient.Client, blockNum int64) {
 		logger.Crit(err.Error())
 	} else {
 		logger.Info("Publish to ZMQ...")
+		spew.Dump(sender)
 		sender.SendBytes(data, 0)
 	}
 	logger.Info("Process done.")
@@ -133,7 +134,7 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	wg.Add(2)
+	wg.Add(1)
 
 	http.HandleFunc("/block", blockNotify)
 	logger.Info("Starting server...")
@@ -147,17 +148,14 @@ func main() {
 		}
 	}()
 
-	go func() {
-		defer wg.Done()
-		sender, err = zmq.NewSocket(zmq.PUB)
-		defer sender.Close()
-		if err != nil {
-			logger.Crit(err.Error())
-		}
-		sender.Bind("tcp://*:8001")
-		logger.Info("ZMQ server started...")
-	}()
+	// Start ZMQ server for braft
+	sender, err = zmq.NewSocket(zmq.PUB)
+	defer sender.Close()
+	if err != nil {
+		logger.Crit(err.Error())
+	}
+	sender.Bind("tcp://*:8001")
+	logger.Info("ZMQ server started...")
 
 	wg.Wait()
-
 }
