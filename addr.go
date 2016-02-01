@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/dyzz/gobtclib/crypto"
+	"github.com/libreoscar/btcwatch/crypto"
 	"math/big"
 )
 

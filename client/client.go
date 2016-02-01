@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dyzz/gobtclib/message"
 	"github.com/golang/protobuf/proto"
+	"github.com/libreoscar/btcwatch/message"
 	"github.com/libreoscar/dbg/spew"
 	zmq "github.com/pebbe/zmq4"
 )

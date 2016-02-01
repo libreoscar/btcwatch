@@ -2,7 +2,7 @@ package crypto
 
 import (
 	"crypto/sha256"
-	"github.com/dyzz/gobtclib/crypto/ripemd160"
+	"github.com/libreoscar/btcwatch/crypto/ripemd160"
 )
 
 func ShaHash(b []byte, out []byte) {
