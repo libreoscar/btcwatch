@@ -1,4 +1,4 @@
-//go:generate protoc -I $GOPATH/src --go_out=$GOPATH/src $GOPATH/src/github.com/dyzz/gobtclib/message/schema.proto
+//go:generate protoc -I $GOPATH/src --go_out=$GOPATH/src $GOPATH/src/github.com/libreoscar/btcwatch/message/schema.proto
 
 package main
 
@@ -57,7 +57,7 @@ func decodePkScript(script []byte) (message []byte) {
 }
 
 func checkBlock(client *btcrpcclient.Client, blockNum int64) {
-	blockHash, err := client.GetBlockHash(653895)
+	blockHash, err := client.GetBlockHash(blockNum)
 	if err != nil {
 		logger.Crit(err.Error())
 		return
@@ -70,7 +70,10 @@ func checkBlock(client *btcrpcclient.Client, blockNum int64) {
 
 	txs := block.Transactions()
 
-	var processedBlock = &message.ProcessedBlock{make([]*message.ProcessedTx, len(txs))}
+	var processedBlock = &message.ProcessedBlock{
+		int32(blockNum),
+		make([]*message.ProcessedTx, len(txs)),
+	}
 
 	logger.Info("Processing txs...")
 	for txIndex, tx := range txs {
@@ -106,7 +109,7 @@ func checkBlock(client *btcrpcclient.Client, blockNum int64) {
 		logger.Crit(err.Error())
 	} else {
 		logger.Info("Publish to ZMQ...")
-		spew.Dump(sender)
+		spew.Dump(data)
 		sender.SendBytes(data, 0)
 	}
 	logger.Info("Process done.")

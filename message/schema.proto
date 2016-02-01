@@ -24,5 +24,6 @@ message ProcessedTx {
 }
 
 message ProcessedBlock {
-  repeated  ProcessedTx Txs = 1;
+  int32 BlockIndex = 1;
+  repeated  ProcessedTx Txs = 2;
 }
