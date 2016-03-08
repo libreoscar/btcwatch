@@ -5,6 +5,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcrpcclient"
 	"github.com/golang/protobuf/proto"
 	"github.com/libreoscar/btcwatch/message"
@@ -21,6 +22,8 @@ var client *btcrpcclient.Client
 var sender *zmq.Socket
 var logger = log.New(log.DEBUG)
 var isTestnet = false
+
+type empty struct{}
 
 func loadConf() *btcrpcclient.ConnConfig {
 	file, err := os.Open("conf.json")
@@ -86,24 +89,31 @@ func checkBlock(client *btcrpcclient.Client, blockNum int64) {
 	for txIndex, tx := range txs {
 		vouts := tx.MsgTx().TxOut
 		result := make([]*message.TxResult, len(vouts))
+		sem := make(chan empty, len(vouts))
 		for i, vout := range vouts {
-			addr := NewAddrFromPkScript(vout.PkScript, isTestnet)
-			if addr != nil {
-				result[i] = &message.TxResult{
-					&message.TxResult_Transfer{
-						&message.ValueTransfer{
-							addr.String(),
-							uint64(vout.Value),
+			go func(i int, vout *wire.TxOut) {
+				addr := NewAddrFromPkScript(vout.PkScript, isTestnet)
+				if addr != nil {
+					result[i] = &message.TxResult{
+						&message.TxResult_Transfer{
+							&message.ValueTransfer{
+								addr.String(),
+								uint64(vout.Value),
+							},
 						},
-					},
+					}
+				} else {
+					result[i] = &message.TxResult{
+						&message.TxResult_Msg{
+							&message.OpReturnMsg{string(decodePkScript(vout.PkScript))},
+						},
+					}
 				}
-			} else {
-				result[i] = &message.TxResult{
-					&message.TxResult_Msg{
-						&message.OpReturnMsg{string(decodePkScript(vout.PkScript))},
-					},
-				}
-			}
+				sem <- empty{}
+			}(i, vout)
+		}
+		for i := 0; i < len(vouts); i++ {
+			<-sem
 		}
 		processedBlock.Txs[txIndex] = &message.ProcessedTx{
 			tx.Sha().String(),

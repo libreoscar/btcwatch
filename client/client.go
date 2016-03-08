@@ -13,7 +13,11 @@ import (
 func main() {
 	receiver, _ := zmq.NewSocket(zmq.SUB)
 	defer receiver.Close()
-	receiver.Connect("tcp://localhost:8001")
+	err := receiver.Connect("tcp://188.166.253.98:8001")
+	if err != nil {
+		fmt.Println("failed to connect server")
+		return
+	}
 	receiver.SetSubscribe("")
 
 	for {
