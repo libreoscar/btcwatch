@@ -20,15 +20,22 @@ import (
 var client *btcrpcclient.Client
 var sender *zmq.Socket
 var logger = log.New(log.DEBUG)
+var isTestnet = false
 
 func loadConf() *btcrpcclient.ConnConfig {
-	file, _ := os.Open("conf.json")
+	file, err := os.Open("conf.json")
+	if err != nil {
+		logger.Crit("failed to open \"conf.json\"")
+		os.Exit(-1)
+	}
 	decoder := json.NewDecoder(file)
 	rpcConf := &btcrpcclient.ConnConfig{}
-	err := decoder.Decode(rpcConf)
+	err = decoder.Decode(rpcConf)
 	if err != nil {
-		fmt.Println("error:", err)
+		logger.Crit(fmt.Sprintf("decode error:%s", err.Error()))
+		os.Exit(-1)
 	}
+	logger.Info(fmt.Sprintf("is testnet:%v", isTestnet))
 	rpcConf.HTTPPostMode = true
 	rpcConf.DisableTLS = true
 	return rpcConf
@@ -80,13 +87,13 @@ func checkBlock(client *btcrpcclient.Client, blockNum int64) {
 		vouts := tx.MsgTx().TxOut
 		result := make([]*message.TxResult, len(vouts))
 		for i, vout := range vouts {
-			addr := NewAddrFromPkScript(vout.PkScript, true)
+			addr := NewAddrFromPkScript(vout.PkScript, isTestnet)
 			if addr != nil {
 				result[i] = &message.TxResult{
 					&message.TxResult_Transfer{
 						&message.ValueTransfer{
 							addr.String(),
-							int32(vout.Value),
+							uint64(vout.Value),
 						},
 					},
 				}

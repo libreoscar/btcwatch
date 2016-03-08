@@ -4,7 +4,7 @@ package message;
 
 message ValueTransfer {
   string address = 1;
-  int32 value = 2;
+  uint64 value = 2;
 }
 
 message OpReturnMsg {
