@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 )
 
 var client *btcrpcclient.Client
@@ -86,6 +87,7 @@ func checkBlock(client *btcrpcclient.Client, blockNum int64) {
 	}
 
 	logger.Info("Processing txs...")
+	start := time.Now()
 	for txIndex, tx := range txs {
 		vouts := tx.MsgTx().TxOut
 		result := make([]*message.TxResult, len(vouts))
@@ -129,7 +131,8 @@ func checkBlock(client *btcrpcclient.Client, blockNum int64) {
 		spew.Dump(data)
 		sender.SendBytes(data, 0)
 	}
-	logger.Info("Process done.")
+	elapsed := time.Since(start)
+	logger.Info(fmt.Sprintf("Process done in %s", elapsed))
 }
 
 func blockNotify(w http.ResponseWriter, r *http.Request) {
