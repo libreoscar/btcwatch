@@ -106,12 +106,15 @@ func checkBlock(client *btcrpcclient.Client, blockNum int64) {
 						},
 					}
 				} else {
-					result[i] = &message.TxResult{
-						&message.TxResult_Msg{
-							&message.OpReturnMsg{string(decodePkScript(vout.PkScript))},
-						},
+					msg := decodePkScript(vout.PkScript)
+					if msg != nil {
+						result[i] = &message.TxResult{
+							&message.TxResult_Msg{
+								&message.OpReturnMsg{string(msg)},
+							},
+						}
+						hasReturn = true
 					}
-					hasReturn = true
 				}
 			}
 			if hasReturn {
