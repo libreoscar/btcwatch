@@ -5,8 +5,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcrpcclient"
+	"github.com/btcsuite/btcutil"
 	"github.com/golang/protobuf/proto"
 	"github.com/libreoscar/btcwatch/message"
 	"github.com/libreoscar/dbg/spew"
@@ -23,8 +23,6 @@ var client *btcrpcclient.Client
 var sender *zmq.Socket
 var logger = log.New(log.DEBUG)
 var isTestnet = false
-
-type empty struct{}
 
 func loadConf() *btcrpcclient.ConnConfig {
 	file, err := os.Open("conf.json")
@@ -83,17 +81,20 @@ func checkBlock(client *btcrpcclient.Client, blockNum int64) {
 
 	var processedBlock = &message.ProcessedBlock{
 		int32(blockNum),
-		make([]*message.ProcessedTx, len(txs)),
+		make([]*message.ProcessedTx, 0),
 	}
 
 	logger.Info("Processing txs...")
 	start := time.Now()
+	var wg sync.WaitGroup
 	for txIndex, tx := range txs {
-		vouts := tx.MsgTx().TxOut
-		result := make([]*message.TxResult, len(vouts))
-		sem := make(chan empty, len(vouts))
-		for i, vout := range vouts {
-			go func(i int, vout *wire.TxOut) {
+		wg.Add(1)
+		go func(txIndex int, tx *btcutil.Tx) {
+			defer wg.Done()
+			vouts := tx.MsgTx().TxOut
+			result := make([]*message.TxResult, len(vouts))
+			hasReturn := false
+			for i, vout := range vouts {
 				addr := NewAddrFromPkScript(vout.PkScript, isTestnet)
 				if addr != nil {
 					result[i] = &message.TxResult{
@@ -110,18 +111,19 @@ func checkBlock(client *btcrpcclient.Client, blockNum int64) {
 							&message.OpReturnMsg{string(decodePkScript(vout.PkScript))},
 						},
 					}
+					hasReturn = true
 				}
-				sem <- empty{}
-			}(i, vout)
-		}
-		for i := 0; i < len(vouts); i++ {
-			<-sem
-		}
-		processedBlock.Txs[txIndex] = &message.ProcessedTx{
-			tx.Sha().String(),
-			result,
-		}
+			}
+			if hasReturn {
+				processedBlock.Txs = append(processedBlock.Txs,
+					&message.ProcessedTx{
+						tx.Sha().String(),
+						result,
+					})
+			}
+		}(txIndex, tx)
 	}
+	wg.Wait()
 	spew.Dump(processedBlock)
 	data, err := proto.Marshal(processedBlock)
 	if err != nil {
@@ -133,6 +135,7 @@ func checkBlock(client *btcrpcclient.Client, blockNum int64) {
 	}
 	elapsed := time.Since(start)
 	logger.Info(fmt.Sprintf("Process done in %s", elapsed))
+	logger.Info(fmt.Sprintf("Block %d has %d OP_Return Txs", blockNum, len(processedBlock.Txs)))
 }
 
 func blockNotify(w http.ResponseWriter, r *http.Request) {
