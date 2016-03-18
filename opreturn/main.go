@@ -8,9 +8,9 @@ import (
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcrpcclient"
 	"github.com/btcsuite/btcutil"
 	"github.com/codegangsta/cli"
+	"github.com/libreoscar/btcrpcclient"
 	"github.com/libreoscar/dbg/spew"
 	"github.com/libreoscar/utils/log"
 	"os"
@@ -227,6 +227,19 @@ func sendOpReturn(addr string, totalAmount float64, msg []byte) {
 	}
 }
 
+func buildBraftMsg(receiver string) (msg []byte) {
+	var buf bytes.Buffer
+	buf.Write([]byte("braft"))
+	buf.WriteByte(1)
+	receiverBin, err := hex.DecodeString(receiver)
+	if err != nil {
+		logger.Crit("could not decode braft address")
+		os.Exit(0)
+	}
+	buf.Write(receiverBin)
+	return buf.Bytes()
+}
+
 func main() {
 	conf := loadConf()
 	client, err = btcrpcclient.New(conf, nil)
@@ -264,6 +277,26 @@ func main() {
 				}
 				msg := []byte(c.Args().Get(2))
 				logger.Info(fmt.Sprintf("crafting tx to %s with amount %v, msg \"%s\"", addr, amount, msg))
+				sendOpReturn(addr, amount, msg)
+			},
+		},
+		{
+			Name:  "sendbraft",
+			Usage: "send op_return tx to address",
+			Action: func(c *cli.Context) {
+				if len(c.Args()) < 3 {
+					fmt.Println("sendbraft addr amount braftAddr")
+					return
+				}
+				addr := c.Args().First()
+				amount, err := strconv.ParseFloat(c.Args().Get(1), 64)
+				if err != nil {
+					logger.Crit("error parsing amount")
+					return
+				}
+				braftReceiver := c.Args().Get(2)
+				msg := buildBraftMsg(braftReceiver)
+				logger.Info(fmt.Sprintf("crafting tx to %s with amount %v, msg \"%s\"", addr, amount, hex.EncodeToString(msg)))
 				sendOpReturn(addr, amount, msg)
 			},
 		},
