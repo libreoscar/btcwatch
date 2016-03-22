@@ -8,6 +8,7 @@ import (
 	"github.com/btcsuite/btcrpcclient"
 	"github.com/btcsuite/btcutil"
 	"github.com/golang/protobuf/proto"
+	"github.com/libreoscar/btcwatch/addr"
 	"github.com/libreoscar/btcwatch/message"
 	"github.com/libreoscar/dbg/spew"
 	"github.com/libreoscar/utils/log"
@@ -95,12 +96,12 @@ func checkBlock(client *btcrpcclient.Client, blockNum int64) {
 			result := make([]*message.TxResult, len(vouts))
 			hasReturn := false
 			for i, vout := range vouts {
-				addr := NewAddrFromPkScript(vout.PkScript, isTestnet)
-				if addr != nil {
+				btcAddr := addr.NewAddrFromPkScript(vout.PkScript, isTestnet)
+				if btcAddr != nil {
 					result[i] = &message.TxResult{
 						&message.TxResult_Transfer{
 							&message.ValueTransfer{
-								addr.String(),
+								btcAddr.String(),
 								uint64(vout.Value),
 							},
 						},
