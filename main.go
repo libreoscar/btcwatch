@@ -10,7 +10,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/libreoscar/btcwatch/addr"
 	"github.com/libreoscar/btcwatch/message"
-	"github.com/libreoscar/dbg/spew"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/libreoscar/utils/log"
 	zmq "github.com/pebbe/zmq4"
 	"io"

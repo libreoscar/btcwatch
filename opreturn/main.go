@@ -11,7 +11,7 @@ import (
 	"github.com/btcsuite/btcutil"
 	"github.com/codegangsta/cli"
 	"github.com/libreoscar/btcrpcclient"
-	"github.com/libreoscar/dbg/spew"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/libreoscar/utils/log"
 	"os"
 	"strconv"
